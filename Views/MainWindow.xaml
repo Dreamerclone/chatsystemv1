@@ -22,10 +22,16 @@
 
         <!-- Connection Panel -->
         <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,10">
-            <TextBlock Text="Username:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-            <TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" Width="150" Margin="0,0,10,0" IsEnabled="{Binding IsConnected, Converter={StaticResource InverseBooleanConverter}, FallbackValue=True}"/>
-            <Button Content="Connect" Command="{Binding ConnectCommand}" Padding="15,5"/>
-            <Ellipse Width="10" Height="10" Margin="10,0,0,0" Fill="{Binding IsConnected, Converter={StaticResource ConnectionStatusColorConverter}, FallbackValue=Red}"/>
+            <TextBlock Text="User:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+            <TextBox Text="{Binding Username}" Width="80" Margin="0,0,10,0" IsEnabled="{Binding IsConnected, Converter={StaticResource InverseBooleanConverter}}"/>
+
+            <TextBlock Text="Host:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+            <TextBox Text="{Binding ServerIp}" Width="120" Margin="0,0,10,0" IsEnabled="{Binding IsConnected, Converter={StaticResource InverseBooleanConverter}}"/>
+
+            <TextBlock Text="Port:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+            <TextBox Text="{Binding Port}" Width="50" Margin="0,0,10,0" IsEnabled="{Binding IsConnected, Converter={StaticResource InverseBooleanConverter}}"/>
+
+            <Button Content="Connect" Command="{Binding ConnectCommand}" Padding="10,2"/>
         </StackPanel>
 
         <!-- Messages List -->
