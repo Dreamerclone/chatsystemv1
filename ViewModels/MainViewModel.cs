@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.IO;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
 using ChatSystem.Infrastructure;
@@ -11,10 +13,12 @@ public class MainViewModel : BaseViewModel
 {
     private readonly IClientService _clientService;
     private readonly IUserService _userService;
+    private readonly string _settingsPath = "settings.json";
+
     private string _username = string.Empty;
     private string _password = string.Empty;
-    private string _serverIp = "127.0.0.1";
-    private int _port = 8888;
+    private string _serverIp = "zephyr.proxy.rlwy.net";
+    private int _port = 54526;
     private string _messageText = string.Empty;
     private bool _isConnected;
     private bool _isLoggedIn;
@@ -44,14 +48,48 @@ public class MainViewModel : BaseViewModel
         SendCommand = new RelayCommand(_ => SendMessage(), _ => IsLoggedIn && !string.IsNullOrWhiteSpace(MessageText));
 
         _clientService.MessageReceived += OnMessageReceived;
+
+        LoadSettings();
+    }
+
+    private void LoadSettings()
+    {
+        if (File.Exists(_settingsPath))
+        {
+            try
+            {
+                var settings = JsonSerializer.Deserialize<LocalSettings>(File.ReadAllText(_settingsPath));
+                if (settings != null)
+                {
+                    Username = settings.LastUsername;
+                    ServerIp = settings.LastHost;
+                    Port = settings.LastPort;
+                }
+            }
+            catch { }
+        }
+    }
+
+    private void SaveSettings()
+    {
+        var settings = new LocalSettings
+        {
+            LastUsername = Username,
+            LastHost = ServerIp,
+            LastPort = Port
+        };
+        File.WriteAllText(_settingsPath, JsonSerializer.Serialize(settings));
     }
 
     private async void Authenticate(MessageType type)
     {
         try
         {
-            if (!IsConnected) await _clientService.ConnectAsync(ServerIp, Port);
-            IsConnected = true;
+            if (!IsConnected)
+            {
+                await _clientService.ConnectAsync(ServerIp, Port);
+                IsConnected = true;
+            }
 
             var authMsg = new Message
             {
@@ -59,7 +97,6 @@ public class MainViewModel : BaseViewModel
                 Sender = new User(Username) { Password = Password }
             };
 
-            // Temporary listener for AuthResponse
             Action<Message>? authHandler = null;
             authHandler = (msg) =>
             {
@@ -68,11 +105,9 @@ public class MainViewModel : BaseViewModel
                     _clientService.MessageReceived -= authHandler;
                     Application.Current.Dispatcher.Invoke(() => {
                         if (msg.Success) {
-                            if (type == MessageType.LoginRequest) {
-                                IsLoggedIn = true;
-                                _currentUser = new User(Username);
-                            }
-                            MessageBox.Show(msg.Text, "Success");
+                            IsLoggedIn = true;
+                            _currentUser = new User(Username);
+                            SaveSettings(); // Save details on success!
                         } else {
                             MessageBox.Show(msg.Text, "Auth Failed");
                         }
@@ -93,7 +128,7 @@ public class MainViewModel : BaseViewModel
     {
         var message = new Message { Sender = _currentUser!, Text = MessageText };
         await _clientService.SendMessageAsync(message);
-        Application.Current.Dispatcher.Invoke(() => Messages.Add(message));
+        Messages.Add(message);
         MessageText = string.Empty;
     }
 
