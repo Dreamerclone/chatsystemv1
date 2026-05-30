@@ -5,7 +5,10 @@ public enum MessageType
     Chat,
     System,
     CommandRequest,
-    CommandResponse
+    CommandResponse,
+    RegisterRequest,
+    LoginRequest,
+    AuthResponse
 }
 
 public class Message
@@ -16,6 +19,7 @@ public class Message
     public string Text { get; set; } = string.Empty;
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
     public MessageType Type { get; set; } = MessageType.Chat;
+    public bool Success { get; set; } // Used for AuthResponse
 
     public bool IsPrivate => !string.IsNullOrEmpty(RecipientUsername) && Type == MessageType.Chat;
 }

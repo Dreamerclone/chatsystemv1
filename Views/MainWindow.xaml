@@ -6,7 +6,7 @@
         xmlns:viewModels="clr-namespace:ChatSystem.ViewModels"
         xmlns:infra="clr-namespace:ChatSystem.Infrastructure"
         mc:Ignorable="d"
-        Title="Modern Chat" Height="650" Width="450" Background="#F0F2F5"
+        Title="Secure Chat" Height="650" Width="450" Background="#F0F2F5"
         WindowStartupLocation="CenterScreen">
 
     <Window.Resources>
@@ -22,148 +22,126 @@
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="BorderBrush" Value="#DDD"/>
             <Style.Resources>
-                <Style TargetType="Border">
-                    <Setter Property="CornerRadius" Value="8"/>
-                </Style>
+                <Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style>
             </Style.Resources>
         </Style>
     </Window.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/> <!-- Header -->
-            <RowDefinition Height="Auto"/> <!-- Connection Info -->
-            <RowDefinition Height="*"/>    <!-- Messages -->
-            <RowDefinition Height="Auto"/> <!-- Input -->
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <Border Grid.Row="0" Background="#1877F2" Padding="15,10" VerticalAlignment="Top">
+        <Border Grid.Row="0" Background="#1877F2" Padding="15,10">
             <StackPanel Orientation="Horizontal">
                 <Ellipse Width="10" Height="10" Fill="{Binding IsConnected, Converter={StaticResource ConnectionStatusColorConverter}}" Margin="0,0,10,0"/>
-                <TextBlock Text="Global Chat" Foreground="White" FontSize="16" FontWeight="SemiBold"/>
+                <TextBlock Text="Secure Global Chat" Foreground="White" FontSize="16" FontWeight="SemiBold"/>
             </StackPanel>
         </Border>
 
-        <!-- Connection Settings (Minimized) -->
-        <Expander Grid.Row="1" Header="Server Settings" Background="White" IsExpanded="False">
+        <!-- Auth & Connection Settings -->
+        <Expander Grid.Row="1" Header="Login / Settings" Background="White" IsExpanded="{Binding IsLoggedIn, Converter={StaticResource InverseBooleanConverter}}">
             <Border Padding="15" Background="#F9F9F9">
                 <StackPanel>
                     <UniformGrid Columns="2" Margin="0,0,0,10">
                         <StackPanel Margin="0,0,5,0">
                             <TextBlock Text="Username" FontSize="11" Foreground="Gray"/>
-                            <TextBox Text="{Binding Username}" Style="{StaticResource ModernTextBox}" IsEnabled="{Binding IsConnected, Converter={StaticResource InverseBooleanConverter}}"/>
+                            <TextBox Text="{Binding Username}" Style="{StaticResource ModernTextBox}" IsEnabled="{Binding IsLoggedIn, Converter={StaticResource InverseBooleanConverter}}"/>
                         </StackPanel>
                         <StackPanel Margin="5,0,0,0">
-                            <TextBlock Text="Host" FontSize="11" Foreground="Gray"/>
-                            <TextBox Text="{Binding ServerIp}" Style="{StaticResource ModernTextBox}" IsEnabled="{Binding IsConnected, Converter={StaticResource InverseBooleanConverter}}"/>
+                            <TextBlock Text="Password" FontSize="11" Foreground="Gray"/>
+                            <TextBox Text="{Binding Password}" Style="{StaticResource ModernTextBox}" IsEnabled="{Binding IsLoggedIn, Converter={StaticResource InverseBooleanConverter}}"/>
                         </StackPanel>
                     </UniformGrid>
-                    <StackPanel Orientation="Horizontal">
-                        <StackPanel Width="80" Margin="0,0,10,0">
-                            <TextBlock Text="Port" FontSize="11" Foreground="Gray"/>
-                            <TextBox Text="{Binding Port}" Style="{StaticResource ModernTextBox}" IsEnabled="{Binding IsConnected, Converter={StaticResource InverseBooleanConverter}}"/>
+
+                    <UniformGrid Columns="2" Margin="0,0,0,10">
+                        <StackPanel Margin="0,0,5,0">
+                            <TextBlock Text="Host" FontSize="11" Foreground="Gray"/>
+                            <TextBox Text="{Binding ServerIp}" Style="{StaticResource ModernTextBox}" IsEnabled="{Binding IsLoggedIn, Converter={StaticResource InverseBooleanConverter}}"/>
                         </StackPanel>
-                        <Button Content="Connect" Command="{Binding ConnectCommand}" Width="100" Height="35" Margin="0,15,0,0" Background="#1877F2" Foreground="White" BorderThickness="0">
-                            <Button.Resources>
-                                <Style TargetType="Border"><Setter Property="CornerRadius" Value="5"/></Style>
-                            </Button.Resources>
+                        <StackPanel Margin="5,0,0,0">
+                            <TextBlock Text="Port" FontSize="11" Foreground="Gray"/>
+                            <TextBox Text="{Binding Port}" Style="{StaticResource ModernTextBox}" IsEnabled="{Binding IsLoggedIn, Converter={StaticResource InverseBooleanConverter}}"/>
+                        </StackPanel>
+                    </UniformGrid>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Register" Command="{Binding RegisterCommand}" Width="80" Height="30" Margin="0,0,10,0" IsEnabled="{Binding IsLoggedIn, Converter={StaticResource InverseBooleanConverter}}"/>
+                        <Button Content="Login" Command="{Binding LoginCommand}" Width="80" Height="30" Background="#1877F2" Foreground="White" BorderThickness="0" IsEnabled="{Binding IsLoggedIn, Converter={StaticResource InverseBooleanConverter}}">
+                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="5"/></Style></Button.Resources>
                         </Button>
                     </StackPanel>
                 </StackPanel>
             </Border>
         </Expander>
 
-        <!-- Chat Area -->
+        <!-- Chat Area (Only visible if logged in) -->
         <Border Grid.Row="2" Background="#FFF" Padding="10">
-            <ItemsControl ItemsSource="{Binding Messages}">
-                <ItemsControl.Template>
-                    <ControlTemplate>
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <ItemsPresenter/>
-                        </ScrollViewer>
-                    </ControlTemplate>
-                </ItemsControl.Template>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Grid Margin="0,5">
-                            <Grid.HorizontalAlignment>
-                                <MultiBinding Converter="{StaticResource MessageAlignmentConverter}">
-                                    <Binding Path="Sender.Username"/>
-                                    <Binding Path="DataContext.Username" RelativeSource="{RelativeSource AncestorType=Window}"/>
-                                </MultiBinding>
-                            </Grid.HorizontalAlignment>
+            <Grid>
+                <TextBlock Text="Please login to view messages" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="Gray">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsLoggedIn}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
 
-                            <Border CornerRadius="12" Padding="12,8" MaxWidth="300">
-                                <Border.Background>
-                                    <MultiBinding Converter="{StaticResource MessageColorConverter}">
-                                        <Binding Path="Sender.Username"/>
-                                        <Binding Path="DataContext.Username" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                <ItemsControl ItemsSource="{Binding Messages}" IsEnabled="{Binding IsLoggedIn}">
+                    <!-- (Template and DataTemplate same as before) -->
+                    <ItemsControl.Template>
+                        <ControlTemplate><ScrollViewer VerticalScrollBarVisibility="Auto"><ItemsPresenter/></ScrollViewer></ControlTemplate>
+                    </ItemsControl.Template>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,5">
+                                <Grid.HorizontalAlignment>
+                                    <MultiBinding Converter="{StaticResource MessageAlignmentConverter}">
+                                        <Binding Path="Sender.Username"/><Binding Path="DataContext.Username" RelativeSource="{RelativeSource AncestorType=Window}"/>
                                     </MultiBinding>
-                                </Border.Background>
-
-                                <StackPanel>
-                                    <TextBlock Text="{Binding Sender.Username}" FontSize="10" FontWeight="Bold" Margin="0,0,0,3">
-                                        <TextBlock.Foreground>
-                                            <MultiBinding Converter="{StaticResource MessageTextColorConverter}">
-                                                <Binding Path="Sender.Username"/>
-                                                <Binding Path="DataContext.Username" RelativeSource="{RelativeSource AncestorType=Window}"/>
-                                            </MultiBinding>
-                                        </TextBlock.Foreground>
-                                    </TextBlock>
-                                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="13">
-                                        <TextBlock.Foreground>
-                                            <MultiBinding Converter="{StaticResource MessageTextColorConverter}">
-                                                <Binding Path="Sender.Username"/>
-                                                <Binding Path="DataContext.Username" RelativeSource="{RelativeSource AncestorType=Window}"/>
-                                            </MultiBinding>
-                                        </TextBlock.Foreground>
-                                    </TextBlock>
-                                    <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:HH:mm}'}" FontSize="9" HorizontalAlignment="Right" Opacity="0.7">
-                                        <TextBlock.Foreground>
-                                            <MultiBinding Converter="{StaticResource MessageTextColorConverter}">
-                                                <Binding Path="Sender.Username"/>
-                                                <Binding Path="DataContext.Username" RelativeSource="{RelativeSource AncestorType=Window}"/>
-                                            </MultiBinding>
-                                        </TextBlock.Foreground>
-                                    </TextBlock>
-                                </StackPanel>
-                            </Border>
-                        </Grid>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                                </Grid.HorizontalAlignment>
+                                <Border CornerRadius="12" Padding="12,8" MaxWidth="300">
+                                    <Border.Background>
+                                        <MultiBinding Converter="{StaticResource MessageColorConverter}">
+                                            <Binding Path="Sender.Username"/><Binding Path="DataContext.Username" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                        </MultiBinding>
+                                    </Border.Background>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Sender.Username}" FontSize="10" FontWeight="Bold" Margin="0,0,0,3">
+                                            <TextBlock.Foreground><MultiBinding Converter="{StaticResource MessageTextColorConverter}"><Binding Path="Sender.Username"/><Binding Path="DataContext.Username" RelativeSource="{RelativeSource AncestorType=Window}"/></MultiBinding></TextBlock.Foreground>
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="13">
+                                            <TextBlock.Foreground><MultiBinding Converter="{StaticResource MessageTextColorConverter}"><Binding Path="Sender.Username"/><Binding Path="DataContext.Username" RelativeSource="{RelativeSource AncestorType=Window}"/></MultiBinding></TextBlock.Foreground>
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:HH:mm}'}" FontSize="9" HorizontalAlignment="Right" Opacity="0.7">
+                                            <TextBlock.Foreground><MultiBinding Converter="{StaticResource MessageTextColorConverter}"><Binding Path="Sender.Username"/><Binding Path="DataContext.Username" RelativeSource="{RelativeSource AncestorType=Window}"/></MultiBinding></TextBlock.Foreground>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
         </Border>
 
         <!-- Input Area -->
         <Border Grid.Row="3" Background="White" BorderBrush="#EEE" BorderThickness="0,1,0,0" Padding="15,10">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <TextBox Text="{Binding MessageText, UpdateSourceTrigger=PropertyChanged}"
-                         Style="{StaticResource ModernTextBox}"
-                         Tag="Type a message..."
-                         FontSize="14"
-                         BorderThickness="0"
-                         Background="#F0F2F5">
-                    <TextBox.InputBindings>
-                        <KeyBinding Key="Enter" Command="{Binding SendCommand}"/>
-                    </TextBox.InputBindings>
+            <Grid IsEnabled="{Binding IsLoggedIn}">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <TextBox Text="{Binding MessageText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Tag="Type a message..." FontSize="14" BorderThickness="0" Background="#F0F2F5">
+                    <TextBox.InputBindings><KeyBinding Key="Enter" Command="{Binding SendCommand}"/></TextBox.InputBindings>
                 </TextBox>
-                <Button Content="Send"
-                        Command="{Binding SendCommand}"
-                        Grid.Column="1"
-                        Margin="10,0,0,0"
-                        Width="70"
-                        Background="#1877F2"
-                        Foreground="White"
-                        FontWeight="Bold"
-                        BorderThickness="0">
-                    <Button.Resources>
-                        <Style TargetType="Border"><Setter Property="CornerRadius" Value="17"/></Style>
-                    </Button.Resources>
+                <Button Content="Send" Command="{Binding SendCommand}" Grid.Column="1" Margin="10,0,0,0" Width="70" Background="#1877F2" Foreground="White" FontWeight="Bold" BorderThickness="0">
+                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="17"/></Style></Button.Resources>
                 </Button>
             </Grid>
         </Border>

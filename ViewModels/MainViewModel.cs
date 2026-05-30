@@ -12,21 +12,26 @@ public class MainViewModel : BaseViewModel
     private readonly IClientService _clientService;
     private readonly IUserService _userService;
     private string _username = string.Empty;
+    private string _password = string.Empty;
     private string _serverIp = "127.0.0.1";
     private int _port = 8888;
     private string _messageText = string.Empty;
     private bool _isConnected;
+    private bool _isLoggedIn;
     private User? _currentUser;
 
     public ObservableCollection<Message> Messages { get; } = new();
 
     public string Username { get => _username; set => SetProperty(ref _username, value); }
+    public string Password { get => _password; set => SetProperty(ref _password, value); }
     public string ServerIp { get => _serverIp; set => SetProperty(ref _serverIp, value); }
     public int Port { get => _port; set => SetProperty(ref _port, value); }
     public string MessageText { get => _messageText; set => SetProperty(ref _messageText, value); }
     public bool IsConnected { get => _isConnected; set => SetProperty(ref _isConnected, value); }
+    public bool IsLoggedIn { get => _isLoggedIn; set => SetProperty(ref _isLoggedIn, value); }
 
-    public ICommand ConnectCommand { get; }
+    public ICommand LoginCommand { get; }
+    public ICommand RegisterCommand { get; }
     public ICommand SendCommand { get; }
 
     public MainViewModel(IClientService clientService, IUserService userService)
@@ -34,65 +39,67 @@ public class MainViewModel : BaseViewModel
         _clientService = clientService;
         _userService = userService;
 
-        ConnectCommand = new RelayCommand(_ => Connect(), _ => !IsConnected && !string.IsNullOrWhiteSpace(Username));
-        SendCommand = new RelayCommand(_ => SendMessage(), _ => IsConnected && !string.IsNullOrWhiteSpace(MessageText));
+        LoginCommand = new RelayCommand(_ => Authenticate(MessageType.LoginRequest), _ => !IsLoggedIn && !string.IsNullOrWhiteSpace(Username) && !string.IsNullOrWhiteSpace(Password));
+        RegisterCommand = new RelayCommand(_ => Authenticate(MessageType.RegisterRequest), _ => !IsLoggedIn && !string.IsNullOrWhiteSpace(Username) && !string.IsNullOrWhiteSpace(Password));
+        SendCommand = new RelayCommand(_ => SendMessage(), _ => IsLoggedIn && !string.IsNullOrWhiteSpace(MessageText));
 
         _clientService.MessageReceived += OnMessageReceived;
     }
 
-    private async void Connect()
+    private async void Authenticate(MessageType type)
     {
-        if (!_userService.IsValidUsername(Username, out string error))
-        {
-            MessageBox.Show(error, "Validation Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            return;
-        }
-
         try
         {
-            _currentUser = _userService.CreateUser(Username);
-            await _clientService.ConnectAsync(ServerIp, Port);
+            if (!IsConnected) await _clientService.ConnectAsync(ServerIp, Port);
             IsConnected = true;
 
-            await _clientService.SendMessageAsync(new Message
+            var authMsg = new Message
             {
-                Sender = _currentUser,
-                Text = $"{Username} has joined the chat.",
-                Type = MessageType.System
-            });
+                Type = type,
+                Sender = new User(Username) { Password = Password }
+            };
+
+            // Temporary listener for AuthResponse
+            Action<Message>? authHandler = null;
+            authHandler = (msg) =>
+            {
+                if (msg.Type == MessageType.AuthResponse)
+                {
+                    _clientService.MessageReceived -= authHandler;
+                    Application.Current.Dispatcher.Invoke(() => {
+                        if (msg.Success) {
+                            if (type == MessageType.LoginRequest) {
+                                IsLoggedIn = true;
+                                _currentUser = new User(Username);
+                            }
+                            MessageBox.Show(msg.Text, "Success");
+                        } else {
+                            MessageBox.Show(msg.Text, "Auth Failed");
+                        }
+                    });
+                }
+            };
+
+            _clientService.MessageReceived += authHandler;
+            await _clientService.SendMessageAsync(authMsg);
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Connection failed: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"Connection failed: {ex.Message}");
         }
     }
 
     private async void SendMessage()
     {
-        if (_currentUser == null) return;
-
-        var message = new Message
-        {
-            Sender = _currentUser,
-            Text = MessageText,
-            Timestamp = DateTime.UtcNow,
-            Type = MessageType.Chat
-        };
-
-        try
-        {
-            await _clientService.SendMessageAsync(message);
-            Application.Current.Dispatcher.Invoke(() => Messages.Add(message));
-            MessageText = string.Empty;
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Failed to send message: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        var message = new Message { Sender = _currentUser!, Text = MessageText };
+        await _clientService.SendMessageAsync(message);
+        Application.Current.Dispatcher.Invoke(() => Messages.Add(message));
+        MessageText = string.Empty;
     }
 
     private void OnMessageReceived(Message message)
     {
+        if (message.Type == MessageType.AuthResponse) return;
         if (message.Sender.Username == _currentUser?.Username && message.Type == MessageType.Chat) return;
         Application.Current.Dispatcher.Invoke(() => Messages.Add(message));
     }

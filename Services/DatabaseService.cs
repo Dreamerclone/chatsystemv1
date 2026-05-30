@@ -8,10 +8,7 @@ public class DatabaseService : IDatabaseService
 
     public DatabaseService(string databasePath = "chat.db")
     {
-        _connectionString = new SqliteConnectionStringBuilder
-        {
-            DataSource = databasePath
-        }.ToString();
+        _connectionString = new SqliteConnectionStringBuilder { DataSource = databasePath }.ToString();
     }
 
     public SqliteConnection CreateConnection() => new SqliteConnection(_connectionString);
@@ -20,24 +17,20 @@ public class DatabaseService : IDatabaseService
     {
         using var connection = CreateConnection();
         connection.Open();
-
         var command = connection.CreateCommand();
-        command.CommandText =
-        @"
+        command.CommandText = @"
             CREATE TABLE IF NOT EXISTS Users (
-                Username TEXT PRIMARY KEY
+                Username TEXT PRIMARY KEY,
+                PasswordHash TEXT
             );
-
             CREATE TABLE IF NOT EXISTS Messages (
                 Id TEXT PRIMARY KEY,
                 SenderUsername TEXT,
                 RecipientUsername TEXT,
                 Text TEXT,
                 Timestamp TEXT,
-                FOREIGN KEY(SenderUsername) REFERENCES Users(Username),
-                FOREIGN KEY(RecipientUsername) REFERENCES Users(Username)
-            );
-        ";
+                FOREIGN KEY(SenderUsername) REFERENCES Users(Username)
+            );";
         command.ExecuteNonQuery();
     }
 }

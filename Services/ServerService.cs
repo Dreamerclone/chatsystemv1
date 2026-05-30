@@ -5,121 +5,132 @@ using System.Net.Sockets;
 using System.Text.Json;
 using ChatSystem.Data;
 using ChatSystem.Models;
+using BCrypt.Net;
 
 namespace ChatSystem.Services;
 
 public class ServerService : IServerService
 {
     private readonly IMessageRepository _repository;
+    private readonly IDatabaseService _dbService;
     private readonly ConcurrentDictionary<string, StreamWriter> _connectedUsers = new();
 
-    public ServerService(IMessageRepository repository)
+    public ServerService(IMessageRepository repository, IDatabaseService dbService)
     {
         _repository = repository;
+        _dbService = dbService;
     }
 
     public async Task StartAsync(int port, CancellationToken ct)
     {
         var listener = new TcpListener(IPAddress.Any, port);
         listener.Start();
-        Console.WriteLine($"[Server] Started on port {port}...");
-
-        try
+        while (!ct.IsCancellationRequested)
         {
-            while (!ct.IsCancellationRequested)
-            {
-                var client = await listener.AcceptTcpClientAsync(ct);
-                _ = HandleClientAsync(client, ct);
-            }
-        }
-        finally
-        {
-            listener.Stop();
+            var client = await listener.AcceptTcpClientAsync(ct);
+            _ = HandleClientAsync(client, ct);
         }
     }
 
     private async Task HandleClientAsync(TcpClient client, CancellationToken ct)
     {
         using (client)
-        await using (var stream = client.GetStream())
-        using (var reader = new StreamReader(stream))
-        await using (var writer = new StreamWriter(stream) { AutoFlush = true })
+        await using var stream = client.GetStream();
+        using var reader = new StreamReader(stream);
+        await using var writer = new StreamWriter(stream) { AutoFlush = true };
+
+        string? currentUsername = null;
+        try
         {
-            string? currentUsername = null;
-
-            try
+            while (!ct.IsCancellationRequested)
             {
-                while (!ct.IsCancellationRequested)
+                var line = await reader.ReadLineAsync(ct);
+                if (line == null) break;
+
+                var message = JsonSerializer.Deserialize<Message>(line);
+                if (message == null) continue;
+
+                if (message.Type == MessageType.RegisterRequest)
                 {
-                    var line = await reader.ReadLineAsync(ct);
-                    if (line == null) break;
+                    await HandleRegister(message, writer);
+                    continue;
+                }
 
-                    var message = JsonSerializer.Deserialize<Message>(line);
-                    if (message == null) continue;
-
-                    // Registration on first message
-                    if (currentUsername == null)
+                if (message.Type == MessageType.LoginRequest)
+                {
+                    if (await HandleLogin(message, writer))
                     {
                         currentUsername = message.Sender.Username;
-                        if (!_connectedUsers.TryAdd(currentUsername, writer))
-                        {
-                            // Optional: Handle duplicate username (e.g., append suffix or disconnect)
-                            Console.WriteLine($"[Server] User {currentUsername} already connected. Overwriting session.");
-                            _connectedUsers[currentUsername] = writer;
-                        }
-                        Console.WriteLine($"[Server] User registered: {currentUsername}");
+                        _connectedUsers[currentUsername] = writer;
                     }
+                    continue;
+                }
 
-                    await ProcessMessageAsync(message, writer);
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Server] Error with client {currentUsername}: {ex.Message}");
-            }
-            finally
-            {
-                if (currentUsername != null)
-                {
-                    _connectedUsers.TryRemove(currentUsername, out _);
-                    Console.WriteLine($"[Server] User disconnected: {currentUsername}");
-                }
+                if (currentUsername != null) await ProcessMessageAsync(message, writer);
             }
         }
+        finally
+        {
+            if (currentUsername != null) _connectedUsers.TryRemove(currentUsername, out _);
+        }
+    }
+
+    private async Task<bool> HandleLogin(Message msg, StreamWriter writer)
+    {
+        using var conn = _dbService.CreateConnection();
+        await conn.OpenAsync();
+        var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT PasswordHash FROM Users WHERE Username = @u";
+        cmd.Parameters.AddWithValue("@u", msg.Sender.Username);
+
+        var hash = await cmd.ExecuteScalarAsync() as string;
+        bool success = hash != null && BCrypt.Net.BCrypt.Verify(msg.Sender.Password, hash);
+
+        await writer.WriteLineAsync(JsonSerializer.Serialize(new Message {
+            Type = MessageType.AuthResponse,
+            Success = success,
+            Text = success ? "Login successful" : "Invalid username or password"
+        }));
+        return success;
+    }
+
+    private async Task HandleRegister(Message msg, StreamWriter writer)
+    {
+        using var conn = _dbService.CreateConnection();
+        await conn.OpenAsync();
+
+        var checkCmd = conn.CreateCommand();
+        checkCmd.CommandText = "SELECT COUNT(*) FROM Users WHERE Username = @u";
+        checkCmd.Parameters.AddWithValue("@u", msg.Sender.Username);
+
+        if ((long)(await checkCmd.ExecuteScalarAsync() ?? 0) > 0)
+        {
+            await writer.WriteLineAsync(JsonSerializer.Serialize(new Message { Type = MessageType.AuthResponse, Success = false, Text = "User already exists" }));
+            return;
+        }
+
+        var hash = BCrypt.Net.BCrypt.HashPassword(msg.Sender.Password);
+        var insCmd = conn.CreateCommand();
+        insCmd.CommandText = "INSERT INTO Users (Username, PasswordHash) VALUES (@u, @p)";
+        insCmd.Parameters.AddWithValue("@u", msg.Sender.Username);
+        insCmd.Parameters.AddWithValue("@p", hash);
+        await insCmd.ExecuteNonQueryAsync();
+
+        await writer.WriteLineAsync(JsonSerializer.Serialize(new Message { Type = MessageType.AuthResponse, Success = true, Text = "Registration successful" }));
     }
 
     private async Task ProcessMessageAsync(Message message, StreamWriter senderWriter)
     {
-        if (message.Type == MessageType.CommandRequest)
-        {
-            await HandleCommandRequestAsync(message, senderWriter);
-            return;
-        }
-
-        // Parse for private messages command in regular chat
-        if (message.Text.StartsWith("/msg ", StringComparison.OrdinalIgnoreCase))
-        {
-            await HandlePrivateMessageAsync(message, senderWriter);
-        }
-        else
-        {
-            _repository.AddMessage(message);
-            await BroadcastAsync(message);
-        }
+        if (message.Type == MessageType.CommandRequest) { await HandleCommandRequestAsync(message, senderWriter); return; }
+        if (message.Text.StartsWith("/msg ")) { await HandlePrivateMessageAsync(message, senderWriter); }
+        else { _repository.AddMessage(message); await BroadcastAsync(message); }
     }
 
     private async Task HandleCommandRequestAsync(Message message, StreamWriter senderWriter)
     {
         if (message.Text == "LIST_USERS")
         {
-            var userList = string.Join(", ", _connectedUsers.Keys);
-            var response = new Message
-            {
-                Type = MessageType.CommandResponse,
-                Sender = new User("System"),
-                Text = $"Online users: {userList}",
-                Timestamp = DateTime.UtcNow
-            };
+            var response = new Message { Type = MessageType.CommandResponse, Sender = new User("System"), Text = $"Online: {string.Join(", ", _connectedUsers.Keys)}" };
             await senderWriter.WriteLineAsync(JsonSerializer.Serialize(response));
         }
     }
@@ -127,57 +138,17 @@ public class ServerService : IServerService
     private async Task HandlePrivateMessageAsync(Message message, StreamWriter senderWriter)
     {
         var parts = message.Text.Split(' ', 3);
-        if (parts.Length < 3)
-        {
-            await SendSystemMessageAsync(senderWriter, "Usage: /msg <username> <message>");
-            return;
-        }
-
-        string targetUsername = parts[1];
-        string content = parts[2];
-
-        message.RecipientUsername = targetUsername;
-        message.Text = content;
-
-        if (_connectedUsers.TryGetValue(targetUsername, out var targetWriter))
-        {
-            var json = JsonSerializer.Serialize(message);
-            await targetWriter.WriteLineAsync(json);
-
-            // Also notify the sender (like a 'sent' confirmation)
-            // In a real app, the client would handle its own UI for sent messages
-            await SendSystemMessageAsync(senderWriter, $"[Private to {targetUsername}]: {content}");
-
-            // Note: Private messages usually aren't stored in a public repository
-            // but could be stored in a separate PrivateMessage table.
-        }
-        else
-        {
-            await SendSystemMessageAsync(senderWriter, $"User '{targetUsername}' is not online.");
+        if (parts.Length < 3) return;
+        message.RecipientUsername = parts[1];
+        message.Text = parts[2];
+        if (_connectedUsers.TryGetValue(parts[1], out var target)) {
+            await target.WriteLineAsync(JsonSerializer.Serialize(message));
         }
     }
 
     private async Task BroadcastAsync(Message message)
     {
         var json = JsonSerializer.Serialize(message);
-        foreach (var user in _connectedUsers)
-        {
-            try
-            {
-                await user.Value.WriteLineAsync(json);
-            }
-            catch { /* Handled by individual client loop */ }
-        }
-    }
-
-    private async Task SendSystemMessageAsync(StreamWriter writer, string text)
-    {
-        var sysMsg = new Message
-        {
-            Sender = new User("System"),
-            Text = text,
-            Timestamp = DateTime.UtcNow
-        };
-        await writer.WriteLineAsync(JsonSerializer.Serialize(sysMsg));
+        foreach (var user in _connectedUsers.Values) await user.WriteLineAsync(json);
     }
 }
