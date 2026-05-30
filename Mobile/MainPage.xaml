@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:ChatSystem.Mobile"
+             xmlns:viewModels="clr-namespace:ChatSystem.ViewModels;assembly=Shared"
+             x:Class="ChatSystem.Mobile.MainPage"
+             Title="Secure Chat"
+             BackgroundColor="#F0F2F5">
+
+    <ContentPage.Resources>
+        <local:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
+        <local:ConnectionStatusColorConverter x:Key="ConnectionStatusColorConverter"/>
+        <local:MessageAlignmentConverter x:Key="MessageAlignmentConverter"/>
+        <local:MessageColorConverter x:Key="MessageColorConverter"/>
+        <local:MessageTextColorConverter x:Key="MessageTextColorConverter"/>
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto, Auto, *, Auto">
+
+        <!-- Header -->
+        <BoxView Grid.Row="0" Color="#1877F2" HeightRequest="50"/>
+        <HorizontalStackLayout Grid.Row="0" VerticalOptions="Center" Margin="15,0">
+            <Ellipse WidthRequest="10" HeightRequest="10" Fill="{Binding IsConnected, Converter={StaticResource ConnectionStatusColorConverter}}" VerticalOptions="Center" Margin="0,0,10,0"/>
+            <Label Text="Secure Global Chat" TextColor="White" FontSize="18" FontAttributes="Bold" VerticalOptions="Center"/>
+        </HorizontalStackLayout>
+
+        <!-- Auth Section -->
+        <VerticalStackLayout Grid.Row="1" Padding="15" BackgroundColor="#F9F9F9" IsVisible="{Binding IsLoggedIn, Converter={StaticResource InverseBooleanConverter}}">
+            <Grid ColumnDefinitions="*, *" ColumnSpacing="10" Margin="0,0,0,10">
+                <VerticalStackLayout Grid.Column="0">
+                    <Label Text="Username" FontSize="11" TextColor="Gray"/>
+                    <Entry Text="{Binding Username}" Placeholder="User"/>
+                </VerticalStackLayout>
+                <VerticalStackLayout Grid.Column="1">
+                    <Label Text="Password" FontSize="11" TextColor="Gray"/>
+                    <Entry Text="{Binding Password}" IsPassword="True" Placeholder="Pass"/>
+                </VerticalStackLayout>
+            </Grid>
+
+            <Grid ColumnDefinitions="*, *" ColumnSpacing="10" Margin="0,0,0,10">
+                <VerticalStackLayout Grid.Column="0">
+                    <Label Text="Host" FontSize="11" TextColor="Gray"/>
+                    <Entry Text="{Binding ServerIp}"/>
+                </VerticalStackLayout>
+                <VerticalStackLayout Grid.Column="1">
+                    <Label Text="Port" FontSize="11" TextColor="Gray"/>
+                    <Entry Text="{Binding Port}" Keyboard="Numeric"/>
+                </VerticalStackLayout>
+            </Grid>
+
+            <HorizontalStackLayout HorizontalOptions="End" Spacing="10">
+                <Button Text="Register" Command="{Binding RegisterCommand}" WidthRequest="100"/>
+                <Button Text="Login" Command="{Binding LoginCommand}" WidthRequest="100" BackgroundColor="#1877F2" TextColor="White"/>
+            </HorizontalStackLayout>
+        </VerticalStackLayout>
+
+        <!-- Chat Area -->
+        <CollectionView Grid.Row="2" ItemsSource="{Binding Messages}" ItemsUpdatingScrollMode="KeepLastItemVisible" Margin="10">
+            <CollectionView.ItemTemplate>
+                <DataTemplate>
+                    <Grid Padding="0,5">
+                        <Border Padding="12,8" StrokeThickness="0">
+                            <Border.StrokeShape>
+                                <RoundRectangle CornerRadius="12"/>
+                            </Border.StrokeShape>
+                            <Border.HorizontalOptions>
+                                <MultiBinding Converter="{StaticResource MessageAlignmentConverter}">
+                                    <Binding Path="Sender.Username"/>
+                                    <Binding Path="BindingContext.Username" Source="{RelativeSource AncestorType={x:Type ContentPage}}"/>
+                                </MultiBinding>
+                            </Border.HorizontalOptions>
+                            <Border.BackgroundColor>
+                                <MultiBinding Converter="{StaticResource MessageColorConverter}">
+                                    <Binding Path="Sender.Username"/>
+                                    <Binding Path="BindingContext.Username" Source="{RelativeSource AncestorType={x:Type ContentPage}}"/>
+                                </MultiBinding>
+                            </Border.BackgroundColor>
+
+                            <VerticalStackLayout Spacing="2" MaximumWidthRequest="250">
+                                <Label Text="{Binding Sender.Username}" FontSize="10" FontAttributes="Bold">
+                                    <Label.TextColor>
+                                        <MultiBinding Converter="{StaticResource MessageTextColorConverter}">
+                                            <Binding Path="Sender.Username"/>
+                                            <Binding Path="BindingContext.Username" Source="{RelativeSource AncestorType={x:Type ContentPage}}"/>
+                                        </MultiBinding>
+                                    </Label.TextColor>
+                                </Label>
+                                <Label Text="{Binding Text}" LineBreakMode="WordWrap">
+                                    <Label.TextColor>
+                                        <MultiBinding Converter="{StaticResource MessageTextColorConverter}">
+                                            <Binding Path="Sender.Username"/>
+                                            <Binding Path="BindingContext.Username" Source="{RelativeSource AncestorType={x:Type ContentPage}}"/>
+                                        </MultiBinding>
+                                    </Label.TextColor>
+                                </Label>
+                                <Label Text="{Binding Timestamp, StringFormat='{0:HH:mm}'}" FontSize="9" HorizontalOptions="End" Opacity="0.7">
+                                    <Label.TextColor>
+                                        <MultiBinding Converter="{StaticResource MessageTextColorConverter}">
+                                            <Binding Path="Sender.Username"/>
+                                            <Binding Path="BindingContext.Username" Source="{RelativeSource AncestorType={x:Type ContentPage}}"/>
+                                        </MultiBinding>
+                                    </Label.TextColor>
+                                </Label>
+                            </VerticalStackLayout>
+                        </Border>
+                    </Grid>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+
+        <!-- Input Area -->
+        <Border Grid.Row="3" BackgroundColor="White" Padding="10" IsVisible="{Binding IsLoggedIn}">
+            <Grid ColumnDefinitions="*, Auto">
+                <Entry Text="{Binding MessageText}" Placeholder="Type a message..." Grid.Column="0" VerticalOptions="Center"/>
+                <Button Text="Send" Command="{Binding SendCommand}" Grid.Column="1" Margin="10,0,0,0" WidthRequest="70" CornerRadius="20" BackgroundColor="#1877F2" TextColor="White"/>
+            </Grid>
+        </Border>
+    </Grid>
+</ContentPage>

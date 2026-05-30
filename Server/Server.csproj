@@ -5,18 +5,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
-
   <ItemGroup>
-    <PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.8" />
+    <ProjectReference Include="..\Shared\Shared.csproj" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.8" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <!-- Reference files from the parent directory -->
-    <Compile Include="..\Models\*.cs" Link="Models\%(RecursiveDir)%(FileName)%(Extension)" />
-    <Compile Include="..\Data\*.cs" Link="Data\%(RecursiveDir)%(FileName)%(Extension)" />
-    <Compile Include="..\Services\*.cs" Link="Services\%(RecursiveDir)%(FileName)%(Extension)" />
-    <Compile Include="..\Commands\*.cs" Link="Commands\%(RecursiveDir)%(FileName)%(Extension)" />
   </ItemGroup>
 </Project>
