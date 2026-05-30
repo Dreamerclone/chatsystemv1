@@ -35,43 +35,46 @@ public class ServerService : IServerService
     private async Task HandleClientAsync(TcpClient client, CancellationToken ct)
     {
         using (client)
-        await using var stream = client.GetStream();
-        using var reader = new StreamReader(stream);
-        await using var writer = new StreamWriter(stream) { AutoFlush = true };
-
-        string? currentUsername = null;
-        try
         {
-            while (!ct.IsCancellationRequested)
+            await using var stream = client.GetStream();
+            using var reader = new StreamReader(stream);
+            await using var writer = new StreamWriter(stream) { AutoFlush = true };
+
+            string? currentUsername = null;
+            try
             {
-                var line = await reader.ReadLineAsync(ct);
-                if (line == null) break;
-
-                var message = JsonSerializer.Deserialize<Message>(line);
-                if (message == null) continue;
-
-                if (message.Type == MessageType.RegisterRequest)
+                while (!ct.IsCancellationRequested)
                 {
-                    await HandleRegister(message, writer);
-                    continue;
-                }
+                    var line = await reader.ReadLineAsync(ct);
+                    if (line == null) break;
 
-                if (message.Type == MessageType.LoginRequest)
-                {
-                    if (await HandleLogin(message, writer))
+                    var message = JsonSerializer.Deserialize<Message>(line);
+                    if (message == null) continue;
+
+                    if (message.Type == MessageType.RegisterRequest)
                     {
-                        currentUsername = message.Sender.Username;
-                        _connectedUsers[currentUsername] = writer;
+                        await HandleRegister(message, writer);
+                        continue;
                     }
-                    continue;
-                }
 
-                if (currentUsername != null) await ProcessMessageAsync(message, writer);
+                    if (message.Type == MessageType.LoginRequest)
+                    {
+                        if (await HandleLogin(message, writer))
+                        {
+                            currentUsername = message.Sender.Username;
+                            _connectedUsers[currentUsername] = writer;
+                        }
+                        continue;
+                    }
+
+                    if (currentUsername != null) await ProcessMessageAsync(message, writer);
+                }
             }
-        }
-        finally
-        {
-            if (currentUsername != null) _connectedUsers.TryRemove(currentUsername, out _);
+            catch { }
+            finally
+            {
+                if (currentUsername != null) _connectedUsers.TryRemove(currentUsername, out _);
+            }
         }
     }
 
@@ -122,7 +125,7 @@ public class ServerService : IServerService
     private async Task ProcessMessageAsync(Message message, StreamWriter senderWriter)
     {
         if (message.Type == MessageType.CommandRequest) { await HandleCommandRequestAsync(message, senderWriter); return; }
-        if (message.Text.StartsWith("/msg ")) { await HandlePrivateMessageAsync(message, senderWriter); }
+        if (message.Text != null && message.Text.StartsWith("/msg ")) { await HandlePrivateMessageAsync(message, senderWriter); }
         else { _repository.AddMessage(message); await BroadcastAsync(message); }
     }
 
